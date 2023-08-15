@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { EncryptionHelper } from './helper/encryption.helper';
 import { FileManager } from './helper/fileManager';
 import { UserCredentialDto } from './dto/user.credential.dto';
-import { parse } from 'path';
 import axios from 'axios';
 
 @Injectable()
