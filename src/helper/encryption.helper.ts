@@ -1,78 +1,79 @@
 import { Injectable } from '@nestjs/common';
+import axios from 'axios';
 import {
-  BinaryLike,
   createCipheriv,
   createDecipheriv,
-  randomBytes,
-  scryptSync,
-  createDiffieHellman,
-  DiffieHellman,
+  getDiffieHellman,
+  createHash,
 } from 'crypto';
 
 @Injectable()
 export class EncryptionHelper {
-  private initiator: DiffieHellman;
-  private algorithm: string;
-  private key: string;
-  // constructor(){}
+  private algorithm = 'aes-256-cbc';
 
-  initiatorKey(): {
-    key: string;
-    prime: string;
-    generator: string;
-  } {
-    const first = createDiffieHellman(512);
-    this.initiator = first;
-    console.log(this.initiator);
-    const key = first.generateKeys('base64');
-    const prime = first.getPrime('base64');
-    const generator = first.getGenerator('base64');
-    return {
-      key,
-      prime,
-      generator,
+  async createAllKeys() {
+    //create public key
+    const client = getDiffieHellman('modp15');
+    client.generateKeys();
+    const clientPublicKey = client.getPublicKey('hex');
+    console.log({ clientPublicKey });
+    //calling to share public key
+    const request = {
+      publicKey: clientPublicKey,
+      deviceId: '2342342324',
+      name: 'mohsenkhashei',
     };
-  }
-
-  initiatorSecret(recipientKey: string): string {
-    console.log(this.initiator);
-    const secret = this.initiator.computeSecret(
-      recipientKey,
-      'base64',
-      'base64',
+    const { data } = await axios.post(
+      'http://localhost:3000/api/register',
+      request,
     );
-    return secret;
+    const serverPublicKey = data.serverPublicKey;
+    console.log(data);
+    // generate shared secret key and key
+    client.generateKeys();
+    const sharedSecret = client.computeSecret(
+      data.data.serverPublicKey,
+      'hex',
+      'hex',
+    );
+    const key = this.generatingKey(sharedSecret);
+
+    // return all
+    return { clientPublicKey, serverPublicKey, sharedSecret, key, data };
+  }
+  async generateSharedSecretKeyFromPublicKey(publicKey) {
+    const client = getDiffieHellman('modp15');
+
+    client.generateKeys();
+    const sharedSecret = client.computeSecret(publicKey, 'hex', 'hex');
+    return sharedSecret;
   }
 
-  // async decryptPayload(
-  //   headerValue: string,
-  //   data: { payload: string; salt: string },
-  // ) {
-  //   const secretKey = this.dataCollector[headerValue];
-  //   if (!secretKey) {
-  //     throw new Error('Invalid header value');
-  //   }
-  //   const encryption = new Encrypter(secretKey, data.salt);
-  //   return JSON.parse(encryption.decrypt(data.payload));
-  // }
-
-  async encryptPayload(payload: object, secretKey: string) {
-    const salt = randomBytes(32).toString('base64');
-
-    if (!secretKey) {
-      throw new Error('Invalid public key value');
-    }
-
-    this.algorithm = 'aes-256-cbc';
-
-    const key = scryptSync(secretKey, salt, 32);
-    const iv = randomBytes(16);
-
-    const cipher = createCipheriv(this.algorithm, key, iv);
-    const encrypted = cipher.update(JSON.stringify(payload), 'utf8', 'hex');
-    return [
-      encrypted + cipher.final('hex'),
-      Buffer.from(iv).toString('hex'),
-    ].join('|');
+  generatingKey(secretKey) {
+    // Generate secret hash with crypto to use for encryption
+    const key = createHash('sha512')
+      .update(secretKey)
+      .digest('hex')
+      .substring(0, 32);
+    // const key = scryptSync(secretKey, 'salt', 32);
+    return key;
+  }
+  // Encrypt data
+  encryptingData(data, key) {
+    const encryptionIV = createHash('sha512').digest('hex').substring(0, 16);
+    const cipher = createCipheriv(this.algorithm, key, encryptionIV);
+    return Buffer.from(
+      cipher.update(data, 'utf8', 'hex') + cipher.final('hex'),
+    ).toString('base64'); // Encrypts data and converts to hex and base64
+  }
+  // Decrypt data
+  decryptingData(encryptedData, key) {
+    const encryptionIV = createHash('sha512').digest('hex').substring(0, 16);
+    const buff = Buffer.from(encryptedData, 'base64');
+    const decipher = createDecipheriv(this.algorithm, key, encryptionIV);
+    return (
+      decipher.update(buff.toString('utf8'), 'hex', 'utf8') +
+      decipher.final('utf8')
+    ); // Decrypts data and converts to utf8
   }
 }
