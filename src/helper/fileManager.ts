@@ -6,12 +6,12 @@ export class FileManager {
   private filePath: string;
 
   constructor() {
-    this.filePath = './Data.json';
+    this.filePath = './Data/';
   }
 
-  async writeFile(data: string): Promise<void> {
+  async writeFile(fileName: string, data: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      fs.writeFile(this.filePath, data, (err) => {
+      fs.writeFile(this.filePath + fileName, data, (err) => {
         if (err) {
           reject(err);
         } else {
@@ -21,9 +21,9 @@ export class FileManager {
     });
   }
 
-  async readFile(): Promise<string> {
+  async readFile(fileName: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      fs.readFile(this.filePath, 'utf8', (err, data) => {
+      fs.readFile(this.filePath + fileName, 'utf8', (err, data) => {
         if (err) {
           reject(err);
         } else {
