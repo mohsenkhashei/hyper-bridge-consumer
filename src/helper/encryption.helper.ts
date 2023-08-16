@@ -55,7 +55,7 @@ export class EncryptionHelper {
       .update(secretKey)
       .digest('hex')
       .substring(0, 32);
-    // const key = scryptSync(secretKey, 'salt', 32);
+
     return key;
   }
   // Encrypt data
